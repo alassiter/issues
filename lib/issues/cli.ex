@@ -8,7 +8,10 @@ defmodule Issues.CLI do
   """
 
   def run(argv) do
-    parse_args(argv)
+    argv
+    |> parse_args()
+    |> process()
+    |> sort_issues()
   end
 
   @doc """
@@ -26,4 +29,27 @@ defmodule Issues.CLI do
   def internal_value([ user, project, count ]), do: { user, project, String.to_integer(count) }
   def internal_value([ user, project ]), do: { user, project, @default_count }
   def internal_value(_), do: :help
+
+  def process(:help) do
+    IO.puts """
+    usage: issues <user> <project> [count | #{@default_count}]
+    """
+    System.halt(0)
+  end
+
+  def process({ user, project, _count }) do
+    Issues.GithubIssues.fetch(user, project)
+    |> decode_response()
+  end
+
+  def decode_response({ :ok, body }), do: body
+  def decode_response({ :error, error }) do
+    IO.puts "Error fetching from Github: #{error["message"]}"
+    System.halt(2)
+  end
+
+  def sort_issues(issues) do
+    issues
+    |> Enum.sort(&(&1["created_at"] >= &2["created_at"]))
+  end
 end
